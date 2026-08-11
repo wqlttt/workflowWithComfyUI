@@ -1,0 +1,12 @@
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.env
+venv/
+.venv/
+*.egg-info/
+.vite/
+.DS_Store
+backend/workflows/
+backend/ssh_config.json
