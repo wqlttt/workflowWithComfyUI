@@ -5,8 +5,9 @@ COMFYUI_DEFAULT_URL = os.getenv("COMFYUI_BASE_URL", "http://127.0.0.1:8188")
 WORKFLOW_DIR = os.path.join(os.path.dirname(__file__), "workflows")
 os.makedirs(WORKFLOW_DIR, exist_ok=True)
 
-# 项目快照文件（保存工作流 + 输出结果）
-PROJECT_FILE = os.path.join(os.path.dirname(__file__), "project.json")
+# 项目目录（每个项目一个 JSON 文件）
+PROJECTS_DIR = os.path.join(os.path.dirname(__file__), "projects")
+os.makedirs(PROJECTS_DIR, exist_ok=True)
 
 # SSH 配置持久化文件
 SSH_CONFIG_FILE = os.path.join(os.path.dirname(__file__), "ssh_config.json")

@@ -1,53 +1,100 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import { NODE_DEFINITIONS, nextNodeId, graphToPrompt } from '../utils/nodeDefinitions.js'
-import { queuePrompt, createWebSocket, getImageUrl, saveProject as saveProjectApi, loadProject as loadProjectApi } from '../api/index.js'
+import {
+  queuePrompt, createWebSocket, getImageUrl,
+  listProjects, createProject as createProjectApi,
+  getProject, updateProject, deleteProject,
+} from '../api/index.js'
 
 const AUTOSAVE_KEY = 'workflow_autosave'
 
 export const useWorkflowStore = defineStore('workflow', () => {
-  // 初始化时从 localStorage 恢复上次的工作流
-  let saved = { nodes: [], edges: [] }
+  // 从 localStorage 恢复上次状态
+  let saved = {}
   try {
     const raw = localStorage.getItem(AUTOSAVE_KEY)
     if (raw) saved = JSON.parse(raw)
   } catch {}
 
+  const view = ref(saved.view || 'home')
+  const currentProjectId = ref(saved.currentProjectId || null)
+  const currentProjectName = ref(saved.currentProjectName || '')
+  const projects = ref([])
   const nodes = ref(saved.nodes || [])
   const edges = ref(saved.edges || [])
   const selectedNodeId = ref(null)
   const executionStatus = ref('idle')
   const executionProgress = ref('')
-  const generatedImages = ref([])
+  const generatedImages = ref(saved.generatedImages || [])
 
   // 自动保存（防抖 500ms）
   let saveTimer = null
-  watch([nodes, edges], () => {
+  watch([nodes, edges, view, currentProjectId, currentProjectName, generatedImages], () => {
     clearTimeout(saveTimer)
     saveTimer = setTimeout(() => {
       try {
         localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({
+          view: view.value,
+          currentProjectId: currentProjectId.value,
+          currentProjectName: currentProjectName.value,
           nodes: nodes.value,
           edges: edges.value,
+          generatedImages: generatedImages.value,
         }))
       } catch {}
     }, 500)
   }, { deep: true })
 
-  // 初始化时从后端项目快照恢复（覆盖 localStorage）
-  loadProjectApi().then(resp => {
-    const data = resp.data
-    if (data && (data.nodes?.length || data.edges?.length)) {
-      nodes.value = data.nodes
-      edges.value = data.edges
-      generatedImages.value = data.generated_images || []
-    }
-  }).catch(() => {})
+  const selectedNode = () => {
+    return nodes.value.find(n => n.id === selectedNodeId.value)
+  }
 
-  // 保存当前项目（工作流 + 输出结果）到后端文件
-  async function saveProject() {
+  // ── 项目管理 ──
+
+  async function fetchProjects() {
     try {
-      await saveProjectApi({
+      const resp = await listProjects()
+      projects.value = resp.data
+    } catch {}
+  }
+
+  async function createProject(name) {
+    try {
+      const resp = await createProjectApi({ name: name || '未命名项目' })
+      const project = resp.data
+      currentProjectId.value = project.id
+      currentProjectName.value = project.name
+      nodes.value = []
+      edges.value = []
+      generatedImages.value = []
+      selectedNodeId.value = null
+      view.value = 'editor'
+      return project
+    } catch {
+      return null
+    }
+  }
+
+  async function openProject(id) {
+    try {
+      const resp = await getProject(id)
+      const project = resp.data
+      currentProjectId.value = project.id
+      currentProjectName.value = project.name
+      nodes.value = project.nodes || []
+      edges.value = project.edges || []
+      generatedImages.value = project.generated_images || []
+      selectedNodeId.value = null
+      view.value = 'editor'
+    } catch {}
+  }
+
+  async function saveCurrentProject() {
+    if (!currentProjectId.value) return false
+    try {
+      await updateProject(currentProjectId.value, {
+        name: currentProjectName.value,
         nodes: nodes.value,
         edges: edges.value,
         generated_images: generatedImages.value,
@@ -58,15 +105,24 @@ export const useWorkflowStore = defineStore('workflow', () => {
     }
   }
 
-  const selectedNode = () => {
-    return nodes.value.find(n => n.id === selectedNodeId.value)
+  async function removeProject(id) {
+    try {
+      await deleteProject(id)
+      await fetchProjects()
+    } catch {}
   }
+
+  function backToHome() {
+    view.value = 'home'
+    fetchProjects()
+  }
+
+  // ── 节点操作 ──
 
   function addNode(type, position) {
     const def = NODE_DEFINITIONS[type]
     if (!def) return
 
-    // 提示词生成节点：创建时自动绑定一个「提示词结果」节点，并自动连线
     if (type === 'PromptGeneratorNode') {
       const genId = `node-${nextNodeId()}`
       const resultId = `node-${nextNodeId()}`
@@ -95,7 +151,6 @@ export const useWorkflowStore = defineStore('workflow', () => {
           outputs: resultDef.outputs,
         },
       })
-      // 自动连线：生成节点 PROMPT 输出 → 结果节点 prompt 输入
       edges.value.push({
         id: `edge-${genId}-${resultId}`,
         source: genId,
@@ -129,7 +184,6 @@ export const useWorkflowStore = defineStore('workflow', () => {
     }
   }
 
-  // 流式更新生成节点绑定的结果子节点
   function updatePromptResult(generatorNodeId, text) {
     const genNode = nodes.value.find(n => n.id === generatorNodeId)
     if (!genNode || !genNode.data.params.result_node_id) return
@@ -144,7 +198,6 @@ export const useWorkflowStore = defineStore('workflow', () => {
     const node = nodes.value.find(n => n.id === nodeId)
     const idsToRemove = [nodeId]
     if (node) {
-      // 生成节点和结果节点绑定删除
       if (node.data.type === 'PromptGeneratorNode' && node.data.params.result_node_id) {
         idsToRemove.push(node.data.params.result_node_id)
       } else if (node.data.type === 'PromptResultNode' && node.data.params.parent_generator) {
@@ -215,9 +268,10 @@ export const useWorkflowStore = defineStore('workflow', () => {
   }
 
   return {
-    nodes, edges, selectedNodeId, executionStatus, executionProgress,
-    generatedImages,
+    view, currentProjectId, currentProjectName, projects,
+    nodes, edges, selectedNodeId, executionStatus, executionProgress, generatedImages,
     selectedNode, addNode, updateNodeParam, updatePromptResult, removeNode, executeWorkflow,
-    clearCanvas, loadWorkflowData, saveProject,
+    clearCanvas, loadWorkflowData,
+    fetchProjects, createProject, openProject, saveCurrentProject, removeProject, backToHome,
   }
 })

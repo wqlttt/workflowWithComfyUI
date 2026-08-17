@@ -153,10 +153,19 @@ export function setImageConfig(data) {
   return api.post('/image/config', data)
 }
 
-// 项目快照保存/加载
-export function saveProject(data) {
-  return api.post('/project/save', data)
+// 多项目管理
+export function listProjects() {
+  return api.get('/projects')
 }
-export function loadProject() {
-  return api.get('/project/load')
+export function createProject(data) {
+  return api.post('/projects', data)
+}
+export function getProject(id) {
+  return api.get(`/projects/${id}`)
+}
+export function updateProject(id, data) {
+  return api.put(`/projects/${id}`, data)
+}
+export function deleteProject(id) {
+  return api.delete(`/projects/${id}`)
 }

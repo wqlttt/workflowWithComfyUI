@@ -251,7 +251,7 @@ async function loadWorkflowHandler(id) {
 }
 
 async function saveProjectHandler() {
-  const ok = await store.saveProject()
+  const ok = await store.saveCurrentProject()
   message.value = ok ? '项目已保存' : '保存失败'
   setTimeout(() => message.value = '', 2000)
 }
@@ -260,6 +260,8 @@ async function saveProjectHandler() {
 <template>
   <div class="toolbar">
     <div class="tb-left">
+      <button @click="store.backToHome()" title="返回项目列表">← 返回</button>
+      <span class="sep">|</span>
       <button @click="emit('update:showNodePanel', !showNodePanel)" :class="{ active: showNodePanel }">节点</button>
       <button @click="emit('update:showPropertyPanel', !showPropertyPanel)" :class="{ active: showPropertyPanel }">属性</button>
       <span class="sep">|</span>
@@ -269,6 +271,7 @@ async function saveProjectHandler() {
     </div>
 
     <div class="tb-center">
+      <span v-if="store.currentProjectName" class="project-name">{{ store.currentProjectName }}</span>
       <span v-if="store.executionProgress" class="progress">{{ store.executionProgress }}</span>
       <span v-if="message" class="msg">{{ message }}</span>
     </div>
@@ -494,6 +497,7 @@ async function saveProjectHandler() {
 .tb-center { flex: 1; justify-content: center; }
 .progress { font-size: 12px; color: #66ccff; }
 .msg { font-size: 12px; color: #6f6; }
+.project-name { font-size: 13px; color: #fff; font-weight: 600; margin-right: 8px; }
 
 /* modals */
 .modal-overlay {

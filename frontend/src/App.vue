@@ -1,16 +1,20 @@
 <script setup>
 import { ref } from 'vue'
+import { useWorkflowStore } from './stores/workflow.js'
 import Toolbar from './components/Toolbar.vue'
 import NodePanel from './components/NodePanel.vue'
 import Canvas from './components/Canvas.vue'
 import PropertyPanel from './components/PropertyPanel.vue'
+import ProjectHome from './components/ProjectHome.vue'
 
+const store = useWorkflowStore()
 const showNodePanel = ref(true)
 const showPropertyPanel = ref(true)
 </script>
 
 <template>
-  <div class="app">
+  <ProjectHome v-if="store.view === 'home'" />
+  <div v-else class="app">
     <Toolbar v-model:show-node-panel="showNodePanel" v-model:show-property-panel="showPropertyPanel" />
     <div class="main">
       <NodePanel v-if="showNodePanel" />

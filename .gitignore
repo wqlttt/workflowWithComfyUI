@@ -12,3 +12,4 @@ backend/workflows/
 backend/ssh_config.json
 backend/ai_config.json
 backend/project.json
+backend/projects/
