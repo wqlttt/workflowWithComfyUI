@@ -3,7 +3,7 @@ import json
 import httpx
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from routers import comfyui, workflow
+from routers import comfyui, workflow, ai, image, project
 from config import get_comfyui_url, SSH_CONFIG_FILE
 from ssh_tunnel import tunnel
 
@@ -19,6 +19,9 @@ app.add_middleware(
 
 app.include_router(comfyui.router)
 app.include_router(workflow.router)
+app.include_router(ai.router)
+app.include_router(image.router)
+app.include_router(project.router)
 
 
 @app.get("/api/health")

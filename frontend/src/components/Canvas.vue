@@ -49,6 +49,7 @@ function onDrop(event) {
       v-model:edges="store.edges"
       :node-types="nodeTypes"
       :default-edge-options="{ animated: true, style: { stroke: '#66ccff', strokeWidth: 2 } }"
+      no-wheel-class-name="nowheel"
       fit-view-on-init
       @pane-click="store.selectedNodeId = null"
     >

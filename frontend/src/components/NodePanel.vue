@@ -21,7 +21,7 @@ function onDragStart(event, nodeType) {
         :key="type"
       >
         <div
-          v-if="def.category === cat"
+          v-if="def.category === cat && type !== 'PromptResultNode'"
           class="node-item"
           draggable="true"
           @dragstart="onDragStart($event, type)"

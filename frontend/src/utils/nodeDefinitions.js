@@ -9,7 +9,7 @@ export const NODE_DEFINITIONS = {
   InputNode: {
     label: '输入',
     category: 'input',
-    inputs: [],
+    inputs: [{ key: 'prompt' }],
     outputs: [{ key: 'PARAMS' }],
     defaults: {
       type: 'text2image',
@@ -21,6 +21,28 @@ export const NODE_DEFINITIONS = {
       batch_size: 1,
     },
   },
+  PromptGeneratorNode: {
+    label: '提示词生成',
+    category: 'input',
+    inputs: [],
+    outputs: [{ key: 'PROMPT' }],
+    defaults: {
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      description: '',
+      generated_prompt: '',
+    },
+  },
+  PromptResultNode: {
+    label: '提示词结果',
+    category: 'input',
+    inputs: [{ key: 'prompt' }],
+    outputs: [{ key: 'PROMPT' }],
+    defaults: {
+      prompt_text: '',
+      parent_generator: '',
+    },
+  },
   ComfyUINode: {
     label: 'ComfyUI',
     category: 'core',
@@ -28,6 +50,17 @@ export const NODE_DEFINITIONS = {
     outputs: [{ key: 'RESULT' }],
     defaults: {
       workflow_json: '',
+    },
+  },
+  ImageGenerationNode: {
+    label: '生图',
+    category: 'core',
+    inputs: [{ key: 'prompt' }],
+    outputs: [{ key: 'IMAGE' }],
+    defaults: {
+      prompt: '',
+      model: 'gemini-3.1-flash-image-preview',
+      generated_images: [],
     },
   },
   OutputNode: {
@@ -40,11 +73,24 @@ export const NODE_DEFINITIONS = {
 }
 
 // 收集所有入口参数（从所有 InputNode 合并）
-function collectInputParams(nodes) {
+function collectInputParams(nodes, edges) {
   const params = {}
   for (const node of nodes) {
     if (node.data.type === 'InputNode' && node.data.params) {
-      Object.assign(params, node.data.params)
+      const p = { ...node.data.params }
+      // 若 prompt 输入有连线，用上游节点（提示词生成/提示词结果）的文本覆盖
+      const promptEdge = edges.find(e => e.target === node.id && e.targetHandle === 'input-0')
+      if (promptEdge) {
+        const src = nodes.find(n => n.id === promptEdge.source)
+        if (src && src.data.params) {
+          if (src.data.type === 'PromptGeneratorNode' && src.data.params.generated_prompt) {
+            p.prompt = src.data.params.generated_prompt
+          } else if (src.data.type === 'PromptResultNode' && src.data.params.prompt_text) {
+            p.prompt = src.data.params.prompt_text
+          }
+        }
+      }
+      Object.assign(params, p)
     }
   }
   // seed 随机
@@ -83,7 +129,7 @@ export function graphToPrompt(nodes, edges) {
   }
 
   // 收集输入参数
-  const params = collectInputParams(nodes)
+  const params = collectInputParams(nodes, edges)
 
   // 注入参数
   const prompt = injectParams(workflowJson, params)
